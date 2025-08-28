@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { InterviewSession, InterviewQuestion, InterviewResponse, Resume } from '../types';
 import { QuestionGenerator } from '../services/questionGenerator';
+import { EvaluationService } from '../services/evaluationService';
 import { SpeechService } from '../services/speechService';
 import { MurfService } from '../services/murfApi';
 
@@ -16,6 +17,7 @@ export function useInterview() {
   const currentAudio = useRef<HTMLAudioElement | null>(null);
   const silenceTimer = useRef<number | null>(null);
   const lastTranscriptAt = useRef<number>(0);
+  const currentResume = useRef<Resume | null>(null);
 
   // Hoisted helper to end the interview safely from anywhere
   function endInterviewNow() {
@@ -38,7 +40,11 @@ export function useInterview() {
 
   const startInterview = useCallback(async (resume: Resume, role: string) => {
     try {
-      const questions = QuestionGenerator.generateQuestions(resume, role, 10);
+      // Store resume for progressive question generation
+      currentResume.current = resume;
+      
+      // Generate only the first question to start quickly
+      const questions = await QuestionGenerator.generateQuestions(resume, role);
       
       const newSession: InterviewSession = {
         id: `interview-${Date.now()}`,
@@ -286,12 +292,24 @@ export function useInterview() {
     if (!session || !responseText.trim()) return;
 
     const currentQuestion = session.questions[session.currentQuestionIndex];
+    
+    // Start with basic response
     const response: InterviewResponse = {
       questionId: currentQuestion.id,
       response: responseText.trim(),
       duration: 0,
       timestamp: new Date(),
+      question: currentQuestion.question, // Add question text for evaluation context
     };
+
+    // Evaluate the response using AI backend
+    try {
+      const evaluation = await EvaluationService.evaluateAnswer(currentQuestion.question, responseText.trim());
+      response.evaluation = evaluation;
+    } catch (error) {
+      console.warn('Failed to evaluate response:', error);
+      // Continue without evaluation
+    }
 
     const updatedSession = {
       ...session,
@@ -299,16 +317,30 @@ export function useInterview() {
     };
 
     // Check if we need a follow-up question (30% chance for detailed responses)
-    const followUp = QuestionGenerator.generateFollowUpQuestion(currentQuestion.question, responseText);
-    // Always insert a follow-up if one is generated
-    if (followUp) {
-      const questionsWithFollowUp = [...updatedSession.questions];
-      questionsWithFollowUp.splice(updatedSession.currentQuestionIndex + 1, 0, followUp);
-      updatedSession.questions = questionsWithFollowUp;
+    try {
+      const followUp = await QuestionGenerator.generateFollowUpQuestion(currentQuestion.question, responseText);
+      // Always insert a follow-up if one is generated
+      if (followUp) {
+        const questionsWithFollowUp = [...updatedSession.questions];
+        questionsWithFollowUp.splice(updatedSession.currentQuestionIndex + 1, 0, followUp);
+        updatedSession.questions = questionsWithFollowUp;
+      }
+    } catch (error) {
+      console.warn('Failed to generate follow-up question:', error);
     }
 
     // Move to next question
     const nextIndex = updatedSession.currentQuestionIndex + 1;
+    
+    // Generate next question if we're running low (keep 2 questions ahead)
+    if (nextIndex >= updatedSession.questions.length - 2 && updatedSession.questions.length < 10 && currentResume.current) {
+      try {
+        const nextQuestion = await QuestionGenerator.generateNextQuestion(currentResume.current, session.role, updatedSession.questions.length);
+        updatedSession.questions = [...updatedSession.questions, nextQuestion];
+      } catch (error) {
+        console.warn('Failed to generate next question:', error);
+      }
+    }
     
     if (nextIndex >= updatedSession.questions.length) {
       // Ask to end the meeting instead of auto-completing

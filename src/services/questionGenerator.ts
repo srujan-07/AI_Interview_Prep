@@ -1,230 +1,214 @@
 import { InterviewQuestion, Resume } from '../types';
 
 export class QuestionGenerator {
-  private static readonly QUESTION_TEMPLATES = {
-    technical: [
-      "Can you explain your experience with {skill}?",
-      "How would you approach solving a problem involving {skill}?",
-      "What challenges have you faced while working with {skill}?",
-      "Can you walk me through a project where you used {skill}?",
-    ],
-    behavioral: [
-      "Tell me about a time when you had to work under pressure.",
-      "Describe a situation where you had to work with a difficult team member.",
-      "How do you handle constructive criticism?",
-      "Tell me about a time you failed and what you learned from it.",
-      "Describe your approach to learning new technologies.",
-    ],
-    experience: [
-      "Tell me about your role at {company}.",
-      "What was your biggest achievement in your previous position?",
-      "How did you contribute to your team's success?",
-      "What motivated you to leave your last position?",
-    ],
-    'role-specific': {
-      'software engineer': [
-        "How do you ensure code quality in your projects?",
-        "Describe your experience with version control systems.",
-        "How do you approach debugging complex issues?",
-        "What's your experience with agile development methodologies?",
-      ],
-      'data scientist': [
-        "How do you approach data cleaning and preprocessing?",
-        "Describe your experience with machine learning algorithms.",
-        "How do you validate your models?",
-        "What tools do you use for data visualization?",
-      ],
-      'product manager': [
-        "How do you prioritize features in a product roadmap?",
-        "Describe your experience with user research.",
-        "How do you handle conflicting stakeholder requirements?",
-        "What metrics do you use to measure product success?",
-      ],
-      'marketing manager': [
-        "How do you measure the success of marketing campaigns?",
-        "Describe your experience with digital marketing channels.",
-        "How do you identify target audiences?",
-        "What's your approach to brand positioning?",
-      ],
-    },
-  };
-
-  static generateQuestions(resume: Resume, role: string, count: number = 10): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const roleKey = role.toLowerCase().replace(/\s+/g, ' ');
-
-    // Generate technical questions based on skills (30%)
-    const technicalCount = Math.ceil(count * 0.3);
-    questions.push(...this.generateTechnicalQuestions(resume.skills, technicalCount));
-
-    // Generate behavioral questions (25%)
-    const behavioralCount = Math.ceil(count * 0.25);
-    questions.push(...this.generateBehavioralQuestions(behavioralCount));
-
-    // Generate experience-based questions (25%)
-    const experienceCount = Math.ceil(count * 0.25);
-    questions.push(...this.generateExperienceQuestions(resume.experience, experienceCount));
-
-    // Generate role-specific questions (20%)
-    const roleSpecificCount = count - questions.length;
-    questions.push(...this.generateRoleSpecificQuestions(roleKey, roleSpecificCount));
-
-    return this.shuffleArray(questions).slice(0, count);
-  }
-
-  private static generateTechnicalQuestions(skills: string[], count: number): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const templates = this.QUESTION_TEMPLATES.technical;
-
-    for (let i = 0; i < count && i < skills.length; i++) {
-      const skill = skills[i];
-      const template = templates[i % templates.length];
-      const question = template.replace('{skill}', skill);
-
-      questions.push({
-        id: `tech-${i}`,
-        question,
+  static async generateQuestions(resume: Resume, role: string): Promise<InterviewQuestion[]> {
+    try {
+      // Extract document text from resume
+      const documentText = resume.content || this.createDocumentTextFromResume(resume);
+      
+      // Generate only the first question initially to avoid rate limiting
+      const firstQuestion = await this.generateSingleQuestionWithAI(role, documentText, 0);
+      
+      const questions: InterviewQuestion[] = [{
+        id: `ai-${Date.now()}-0`,
+        question: firstQuestion,
         category: 'technical',
         difficulty: this.getRandomDifficulty(),
-        expectedDuration: 120, // 2 minutes
-      });
-    }
+        expectedDuration: 120,
+      }];
 
-    return questions;
+      return questions;
+    } catch (error) {
+      console.error('Error generating questions with AI:', error);
+      throw new Error('Unable to generate interview questions. Please check your internet connection and try again.');
+    }
   }
 
-  private static generateBehavioralQuestions(count: number): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const templates = this.QUESTION_TEMPLATES.behavioral;
-
-    for (let i = 0; i < count; i++) {
-      const template = templates[i % templates.length];
-
-      questions.push({
-        id: `behavioral-${i}`,
-        question: template,
-        category: 'behavioral',
-        difficulty: 'medium',
-        expectedDuration: 180, // 3 minutes
-      });
-    }
-
-    return questions;
-  }
-
-  private static generateExperienceQuestions(experiences: string[], count: number): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const templates = this.QUESTION_TEMPLATES.experience;
-
-    for (let i = 0; i < count; i++) {
-      const template = templates[i % templates.length];
-      let question = template;
-
-      // Try to extract company names from experience
-      if (experiences.length > 0 && template.includes('{company}')) {
-        const experience = experiences[i % experiences.length];
-        const companyMatch = experience.match(/at\s+([A-Z][a-zA-Z\s&]+)/);
-        const company = companyMatch ? companyMatch[1] : 'your previous company';
-        question = template.replace('{company}', company);
-      }
-
-      questions.push({
-        id: `exp-${i}`,
+  static async generateNextQuestion(resume: Resume, role: string, questionIndex: number): Promise<InterviewQuestion> {
+    try {
+      const documentText = resume.content || this.createDocumentTextFromResume(resume);
+      const question = await this.generateSingleQuestionWithAI(role, documentText, questionIndex);
+      
+      return {
+        id: `ai-${Date.now()}-${questionIndex}`,
         question,
-        category: 'experience',
-        difficulty: 'medium',
-        expectedDuration: 150, // 2.5 minutes
-      });
-    }
-
-    return questions;
-  }
-
-  private static generateRoleSpecificQuestions(role: string, count: number): InterviewQuestion[] {
-    const questions: InterviewQuestion[] = [];
-    const roleTemplates = this.QUESTION_TEMPLATES['role-specific'][role as keyof typeof this.QUESTION_TEMPLATES['role-specific']] || 
-                         this.QUESTION_TEMPLATES['role-specific']['software engineer']; // Default fallback
-
-    for (let i = 0; i < count; i++) {
-      const template = roleTemplates[i % roleTemplates.length];
-
-      questions.push({
-        id: `role-${i}`,
-        question: template,
-        category: 'role-specific',
+        category: this.getQuestionCategory(questionIndex, 10),
         difficulty: this.getRandomDifficulty(),
-        expectedDuration: 180, // 3 minutes
-      });
+        expectedDuration: 120,
+      };
+    } catch (error) {
+      console.error('Error generating next question:', error);
+      throw error;
     }
-
-    return questions;
   }
 
-  static generateFollowUpQuestion(originalQuestion: string, response: string): InterviewQuestion | null {
+  private static async generateSingleQuestionWithAI(interviewType: string, documentText: string, questionIndex: number): Promise<string> {
+    // Use the exact same prompt logic as the Ai-interview folder's llm_handler.py
+    const contextualPrompts = [
+      `As an expert ${interviewType} interviewer, analyze this resume and ask a challenging technical question that tests specific skills mentioned in the document:`,
+      `As an experienced ${interviewType} interviewer, create a behavioral question based on the candidate's experience described in this resume:`,
+      `As a senior ${interviewType} interviewer, formulate a situational question that relates to the projects and roles mentioned in this document:`,
+      `As a professional ${interviewType} interviewer, ask a role-specific question that evaluates competencies relevant to the position based on this resume:`,
+      `As an expert ${interviewType} interviewer, create a problem-solving question that connects to the candidate's background as described in this document:`
+    ];
+
+    const selectedPrompt = contextualPrompts[questionIndex % contextualPrompts.length];
+    const prompt = `${selectedPrompt}\n\n---\nRESUME CONTENT:\n${documentText}\n---\n\nGenerate ONE specific, open-ended interview question. Make it unique and directly related to the content above. Do not repeat questions. Question ${questionIndex + 1}:`;
+    
+    // Retry logic for rate limiting
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        // Add delay before each attempt (exponential backoff)
+        if (attempt > 0) {
+          const delay = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAWF4TvMZMEv7W-MTkNdZzTel324MwrZaE', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.8, // Add randomness to avoid repetitive questions
+              maxOutputTokens: 200,
+              topP: 0.9,
+              topK: 40,
+            }
+          }),
+        });
+
+        if (response.status === 429) {
+          console.warn(`Rate limit hit, attempt ${attempt + 1}/3`);
+          continue; // Try again with longer delay
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        const generatedQuestion = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        
+        if (!generatedQuestion) {
+          throw new Error('Empty response from Gemini API');
+        }
+
+        // Clean up the question (remove any extra formatting)
+        return generatedQuestion.replace(/^(Question:|Q:|\d+\.?\s*)/i, '').trim();
+      } catch (error) {
+        if (attempt === 2) { // Last attempt
+          console.error('AI question generation failed after all retries:', error);
+          throw error;
+        }
+        console.warn(`Attempt ${attempt + 1} failed, retrying...`, error);
+      }
+    }
+    
+    throw new Error('Failed to generate question after multiple attempts');
+  }
+
+  private static createDocumentTextFromResume(resume: Resume): string {
+    let text = `Resume for ${resume.fileName || 'Candidate'}\n\n`;
+    
+    if (resume.skills && resume.skills.length > 0) {
+      text += `Skills: ${resume.skills.join(', ')}\n\n`;
+    }
+    
+    if (resume.experience && resume.experience.length > 0) {
+      text += `Experience:\n${resume.experience.join('\n')}\n\n`;
+    }
+    
+    if (resume.education && resume.education.length > 0) {
+      text += `Education:\n${resume.education.join('\n')}\n\n`;
+    }
+
+    if (resume.content) {
+      text += `Additional Content:\n${resume.content}`;
+    }
+
+    return text;
+  }
+
+  private static getQuestionCategory(index: number, total: number): 'technical' | 'behavioral' | 'experience' | 'role-specific' {
+    const ratio = index / total;
+    if (ratio < 0.3) return 'technical';
+    if (ratio < 0.55) return 'behavioral';
+    if (ratio < 0.8) return 'experience';
+    return 'role-specific';
+  }
+
+  static async generateFollowUpQuestion(originalQuestion: string, response: string): Promise<InterviewQuestion | null> {
     const text = response.trim();
     if (!text) return null;
 
-    // Extract specific hooks from the response for targeted follow-ups
-    const hooks: string[] = [];
-    const lower = text.toLowerCase();
+    // Use AI to generate contextual follow-up questions
+    const prompt = `Based on this interview question and answer, generate ONE specific follow-up question that digs deeper into their response:
 
-    // Find quoted phrases
-    const quoted = [...text.matchAll(/"([^"]{3,80})"|'([^']{3,80})'/g)].map(m => (m[1] || m[2]).trim());
-    hooks.push(...quoted);
+ORIGINAL QUESTION: ${originalQuestion}
 
-    // Tool/tech keywords
-    const techMatches = [...text.matchAll(/\b(node|react|angular|vue|java|python|go|aws|azure|gcp|docker|kubernetes|mysql|postgres|mongodb|redis|graphql|rest)\b/gi)].map(m => m[0]);
-    hooks.push(...techMatches);
+CANDIDATE'S ANSWER: ${text}
 
-    // Metrics or numbers
-    const metricMatch = text.match(/(\d+\s?%|\$\d+[km]?|\d+\s?(ms|s|sec|min|hours?)|\d+\s?(users?|requests?|tickets?))/i);
-    if (metricMatch) hooks.push(metricMatch[0]);
+Generate a follow-up question that:
+- Asks for specific examples or details
+- Explores the impact or results of their actions
+- Challenges them to think deeper about their approach
+- Is natural and conversational
 
-    // Roles/teams
-    if (lower.includes('team') || lower.includes('stakeholder')) hooks.push('team collaboration');
-    if (lower.includes('deadline')) hooks.push('deadline');
-    if (lower.includes('scal')) hooks.push('scalability');
-    if (lower.includes('performance')) hooks.push('performance');
-    if (lower.includes('security')) hooks.push('security');
+Provide only the follow-up question, nothing else.`;
 
-    // Pick a salient snippet from response (last sentence with substance)
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.length > 8);
-    const salient = sentences[sentences.length - 1] || text;
+    try {
+      const apiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAWF4TvMZMEv7W-MTkNdZzTel324MwrZaE', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 150,
+          }
+        }),
+      });
 
-    // Build targeted prompts
-    const prompts: string[] = [];
-    if (hooks.length > 0) {
-      const key = hooks[Math.floor(Math.random() * hooks.length)];
-      prompts.push(`You mentioned ${key}. Could you give a concrete example?`);
-      prompts.push(`Can you break down the steps you took around ${key}?`);
-      prompts.push(`What was the measurable impact related to ${key}?`);
-      prompts.push(`What trade-offs did you consider regarding ${key}?`);
+      if (!apiResponse.ok) {
+        return null; // Fail silently for follow-up questions
+      }
+
+      const data = await apiResponse.json();
+      const followUpQuestion = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      
+      if (!followUpQuestion) {
+        return null;
+      }
+
+      return {
+        id: `followup-${Date.now()}`,
+        question: followUpQuestion.replace(/^(Question:|Q:|\d+\.?\s*)/i, '').trim(),
+        category: 'behavioral',
+        difficulty: 'medium',
+        expectedDuration: 120,
+      };
+    } catch (error) {
+      console.warn('Follow-up question generation failed:', error);
+      return null;
     }
-    prompts.push(`What was the hardest part about that, and how did you handle it?`);
-    prompts.push(`If you had to do it again, what would you change and why?`);
-    prompts.push(`How did you validate success for that approach?`);
-
-    const question = prompts[Math.floor(Math.random() * prompts.length)];
-    return {
-      id: `followup-${Date.now()}`,
-      question,
-      category: 'behavioral',
-      difficulty: 'medium',
-      expectedDuration: 120,
-    };
   }
 
   private static getRandomDifficulty(): 'easy' | 'medium' | 'hard' {
     const difficulties: ('easy' | 'medium' | 'hard')[] = ['easy', 'medium', 'hard'];
     return difficulties[Math.floor(Math.random() * difficulties.length)];
-  }
-
-  private static shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
   }
 }

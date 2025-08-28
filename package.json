@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:backend": "cd Ai-interview && python api_server.py",
+    "start:full": "npm run start:backend & npm run dev"
   },
   "dependencies": {
     "@types/file-saver": "^2.0.7",
@@ -34,6 +36,6 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
-    "vite": "^5.4.2"
+    "vite": "^5.4.19"
   }
 }

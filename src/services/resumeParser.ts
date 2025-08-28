@@ -2,15 +2,21 @@ import { Resume } from '../types';
 
 export class ResumeParser {
   static async parseResume(file: File): Promise<Partial<Resume>> {
-    const content = await this.extractTextFromFile(file);
-    
-    return {
-      fileName: file.name,
-      content,
-      skills: this.extractSkills(content),
-      experience: this.extractExperience(content),
-      education: this.extractEducation(content),
-    };
+    try {
+      // Use direct client-side parsing with improved text extraction
+      const content = await this.extractTextFromFile(file);
+      
+      return {
+        fileName: file.name,
+        content,
+        skills: this.extractSkills(content),
+        experience: this.extractExperience(content),
+        education: this.extractEducation(content),
+      };
+    } catch (error) {
+      console.error('Resume parsing failed:', error);
+      throw new Error('Failed to parse resume file');
+    }
   }
 
   private static async extractTextFromFile(file: File): Promise<string> {

@@ -22,6 +22,8 @@ export interface InterviewResponse {
   audioUrl?: string;
   duration: number;
   timestamp: Date;
+  evaluation?: string;
+  question?: string;
 }
 
 export interface InterviewSession {

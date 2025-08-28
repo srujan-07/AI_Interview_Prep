@@ -1,33 +1,72 @@
-# Voice Interview Prep (React + Vite + TypeScript)
+# AI Interview Prep - Integrated AI-Powered Interview Platform
 
-An audio-first mock interview app. It generates role-aware questions from an uploaded resume, speaks each question, listens to your voice responses, asks targeted follow-ups, and produces results at the end.
+This project combines a React TypeScript frontend with an AI-powered Python backend for conducting intelligent interview sessions. The system uses Google's Gemini AI (instead of Grok) to generate dynamic questions based on uploaded resumes and evaluate candidate responses.
 
-## Features
-- Full voice flow: questions spoken, voice captured; minimal on-screen text
-- Question generation from resume content and selected role
-- Targeted follow-ups based on what you said (keywords, metrics, quoted phrases)
-- Auto-continue after you stop speaking (silence timeout and final-result handling)
-- Automatic end prompt: say "end interview" to finish
-- Polished, minimal, audio-focused UI
+## Architecture
+
+- **Frontend**: React + TypeScript + Vite (Port 5173)
+- **Backend**: Python Flask API (Port 5000)  
+- **AI Engine**: Google Gemini API for question generation and evaluation
+- **Document Processing**: PyMuPDF and python-docx for resume parsing
+- **Speech**: Browser Web Speech API + optional Murf TTS integration
+
+## Key Changes Made
+
+### 1. AI Backend Integration
+- Replaced static question templates with dynamic AI-generated questions
+- Questions are now generated based on actual resume content and role requirements
+- Real-time answer evaluation using AI
+
+### 2. API Migration
+- **Removed**: Grok API dependency
+- **Added**: Google Gemini AI integration with API key: `AIzaSyAWF4TvMZMEv7W-MTkNdZzTel324MwrZaE`
+- **New**: Flask REST API endpoints for seamless frontend-backend communication
+
+### 3. Enhanced Resume Processing
+- AI-powered document text extraction
+- Improved parsing for PDF and DOCX files
+- Fallback to client-side processing if backend is unavailable
 
 ## Quick Start
-1. Prerequisites
-   - Node.js 18+
-   - Modern Chromium-based browser (Chrome recommended) with mic access
-2. Install
-   - `npm install`
-3. Run (development)
-   - `npm run dev`
-   - Open the printed Local URL (e.g., http://localhost:5173)
-4. Build (production)
-   - `npm run build`
-   - `npm run preview` to serve the production build locally
 
-## How It Works
-- Resume parsing: simple client-side extraction (see `src/services/resumeParser.ts`). Text, skills, and experience entries guide question generation.
-- Question generation: template + heuristic approach (see `src/services/questionGenerator.ts`).
-  - Role-specific, technical, experience, and behavioral questions
-  - Follow-ups use hooks from your last answer (tech keywords, numbers/metrics, quoted phrases, concepts like performance/security) to make prompts more specific
+### Prerequisites
+- Node.js 18+
+- Modern Chromium-based browser (Chrome recommended) with mic access
+
+### Installation & Setup
+1. **Install Frontend Dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Run the Application**
+   ```bash
+   npm run dev
+   ```
+   - Open http://localhost:5174/ (or the printed Local URL)
+
+### How It Works
+
+**NEW: Direct AI Integration**
+- The frontend now directly integrates with Google Gemini AI for question generation and evaluation
+- No separate Python backend required for basic functionality
+- Questions are dynamically generated based on resume content using the same logic as the Ai-interview folder
+- Real-time answer evaluation with detailed feedback
+
+**Core Features:**
+- **Smart Question Generation**: AI analyzes your resume and generates role-specific questions
+- **Voice Interface**: Full voice flow - questions are spoken, responses captured via microphone
+- **Real-time Evaluation**: Each answer is evaluated using AI with detailed scoring and feedback
+- **Follow-up Questions**: Dynamic follow-ups based on your responses
+- **Comprehensive Reporting**: Detailed performance analysis and improvement suggestions
+
+**Workflow:**
+1. Upload your resume (PDF, DOCX, or TXT)
+2. Select your target role
+3. AI generates personalized questions based on your resume content
+4. Answer questions using voice input
+5. Receive real-time evaluation and feedback
+6. Get comprehensive performance report with improvement suggestions
 - Speaking questions:
   - Tries Murf TTS first (`src/services/murfApi.ts`)
   - Falls back to browser `speechSynthesis` if Murf fails/unavailable
